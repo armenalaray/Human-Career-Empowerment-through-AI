@@ -12,7 +12,6 @@ Y Vector  10000's X 1;
 The size intended for the table(1,000 - 100,000 examples);
 
 Think on how to reliably adjust to bigger data sizes( >= 1,0000,0000 examples) 
-
 Do we want it to be multiplatform?
 */
 
@@ -29,7 +28,6 @@ Do we want it to be multiplatform?
 //TODO(Alex): Remove this!
 global_variable matrix_2 GlobalDataMatrix;
 //#define MAX_NUM_TEST 8
-
 
 //TODO(Alex): remove this global, if possible.
 //NOTE(Alex): This is here for operator overloading
@@ -49,136 +47,21 @@ InputParamsAreValid(matrix_2 * X, matrix_2 * y)
     return Result;
 }
 
-internal void
-ai_LearningStep(ai_state * AIState, r64 * Out_Cost)
+inline void
+InitTrainingSet(ai_state* AIState,  ai_matrix_set * out_MSetX, ai_matrix_set * out_MSetY, 
+                u32 MinRowIndex, u32 MaxRowIndex)
 {
-    if(GlobalAIState && 
-       (AIState->IterIndex < MAX_LEARNING_ITERS))
-    {
-        temp_memory TempMemory = BeginTempMemory(&AIState->TranArena);
-        matrix_2 Grads = GetGradient(AIState, &AIState->TrainingSetX, &AIState->TrainingSety, AIState->RegParam); 
-        AIState->Theta = (AIState->Theta - (AIState->h * Grads));
-        *Out_Cost = CostOfTheta(AIState, &AIState->TrainingSetX, &AIState->TrainingSety, AIState->RegParam);
-        
-        EndTempMemory(&TempMemory);
-        ++AIState->IterIndex;
-    }
+    out_MSetX->Matrix = &AIState->X; 
+    out_MSetX->MinRowIndex = MinRowIndex; 
+    out_MSetX->MaxRowIndex = MaxRowIndex; 
+    
+    out_MSetY->Matrix = &AIState->y; 
+    out_MSetY->MinRowIndex = MinRowIndex; 
+    out_MSetY->MaxRowIndex = MaxRowIndex; 
 }
 
 
-//TODO(Alex): Move this calculations outside the loop, they dont need to be calculated twice!
-internal r64 FindMaxCost(ai_graph_entries * Entries, u32 EntryCount)
-{
-    r64 Result = MinR64;
-    for(u32 Index = 0;
-        Index < EntryCount;
-        ++Index)
-    {
-        ai_graph_entries * Entry = Entries + Index;
-        EXCHANGE_MAX_R64(Result, Entry->TrainingCost);
-        EXCHANGE_MAX_R64(Result, Entry->CVCost);
-    }
-    
-    return Result;
-}
 
-struct graph_point
-{
-    vector_2 P;
-    vector_4 Color;
-};
-
-struct graph_point_result
-{
-    u32 PointCount;
-    graph_point * Points;
-};
-
-internal graph_point_result * 
-MapGraphEntriesToBasis(memory_arena * Arena, ai_graph_entries * Entries, u32 EntryCount, vector_2 Origin, vector_2 XAxis, vector_2 YAxis)
-{
-    graph_point_result * Result = 0;
-    
-    uint32_t PointIndex = 0;
-    Result = PushStruct(Arena, graph_point_result);
-    Result->PointCount = (EntryCount << 1);
-    Result->Points = PushArray(Arena, Result->PointCount, graph_point);
-    
-    if(Result && Result->Points)
-    {
-        //NOTE(Alex): Here we are assuming that the last entry has the biggest trainingcount; 
-        ai_graph_entries * LastEntry = Entries + (EntryCount - 1);
-        r32 InverseMaxTrainingCount = 1.0f / (r32)LastEntry->TrainCount;
-        r32 MaxCost = (r32)FindMaxCost(Entries, EntryCount);
-        r32 InverseMaxCost = 1.0f / MaxCost;
-        
-        for(u32 Index = 0;
-            Index < EntryCount;
-            ++Index)
-        {
-            Assert(PointIndex < Result->PointCount);
-            
-            ai_graph_entries * Entry = Entries + Index;
-            graph_point * RTrain = Result->Points + PointIndex++;
-            graph_point * RCV = Result->Points + PointIndex++;
-            
-            r32 DispX = ((r32)Entry->TrainCount * InverseMaxTrainingCount * XAxis.x);
-            r32 DispYTrain = ((r32)Entry->TrainingCost * InverseMaxCost * YAxis.y);
-            r32 DispYCV = ((r32)Entry->CVCost * InverseMaxCost * YAxis.y);
-            
-#if 0            
-            Assert(DispX < XAxis.x);
-            Assert(DispYTrain < YAxis.y);
-            Assert(DispYCV < YAxis.y);
-#endif
-            
-            RTrain->P.x = Origin.x + DispX;
-            RTrain->P.y = Origin.y + DispYTrain;
-            RTrain->Color = Vector4(1.0f,1.0f,0.0f,1.0f);
-            
-            RCV->P.x = Origin.x + DispX;
-            RCV->P.y = Origin.y + DispYCV;
-            RCV->Color = Vector4(0.0f,1.0f,1.0f,1.0f);
-        }
-    }
-    
-    return Result;
-}
-
-internal void
-DebugPlot2D(ai_state * AIState, asset_bitmap * Buffer, ai_graph_entries * Entries, u32 EntryCount)
-{
-    vector_2 Origin = {300,100};  
-    vector_2 YAxis = Vector2(0, 400.0f);  
-    vector_2 XAxis = Vector2(400.0f, 0);  
-    
-    r32  BoxWidth, BoxHeight, Red, Green, Blue;
-    BoxWidth = BoxHeight = 8.0f;
-    Blue = Green = Red = 1.0f;
-    
-    graph_point_result * Graph = MapGraphEntriesToBasis(&AIState->TranArena, Entries, EntryCount, Origin, XAxis, YAxis);
-    if(Graph)
-    {
-        
-        rectangle_2 OriginRect = RectCenterDim(Origin, Vector2(BoxWidth, BoxHeight));
-        DrawRectangleAt(Buffer, OriginRect, 0.0f, 1.0f, 0.0f);
-        
-        rectangle_2 XBasisRect = RectCenterDim(XAxis + Origin, Vector2(BoxWidth, BoxHeight));
-        DrawRectangleAt(Buffer, XBasisRect, 1.0f, 0.0f, 0.0f);
-        
-        rectangle_2 YRect = RectCenterDim(YAxis  + Origin, Vector2(BoxWidth, BoxHeight));
-        DrawRectangleAt(Buffer, YRect, 0.0f, 0.0f, 1.0f);
-        
-        for(u32 Index = 0;
-            Index < Graph->PointCount;
-            ++Index)
-        {
-            graph_point * Point = Graph->Points + Index;
-            rectangle_2 Rect = RectCenterDim(Point->P, Vector2(BoxWidth, BoxHeight));
-            DrawRectangleAt(Buffer, Rect, Point->Color.r, Point->Color.g, Point->Color.b, Point->Color.a);
-        }
-    }
-}
 
 extern "C" AI_UPDATE_AND_RENDER(AIUpdateAndRender)
 {
@@ -207,22 +90,8 @@ extern "C" AI_UPDATE_AND_RENDER(AIUpdateAndRender)
             AIState->h = 0.01;
             AIState->RegParam = 1.0f;
             
-            AIState->TrainingSetX.Matrix = &AIState->X; 
-            AIState->TrainingSetX.MinRow = 0; 
-            AIState->TrainingSetX.MaxRow = INIT_TRAINING_BOUND_MAX; 
-            
-            AIState->TrainingSety.Matrix = &AIState->y; 
-            AIState->TrainingSety.MinRow = 0; 
-            AIState->TrainingSety.MaxRow = INIT_TRAINING_BOUND_MAX; 
-            
-            AIState->TestSetX.Matrix = &AIState->X; 
-            AIState->TestSetX.MinRow = INIT_TEST_BOUND_MIN; 
-            AIState->TestSetX.MaxRow = AIState->X.CountX;
-            
-            AIState->TestSety.Matrix = &AIState->y; 
-            AIState->TestSety.MinRow = INIT_TEST_BOUND_MIN; 
-            AIState->TestSety.MaxRow = AIState->y.CountX;
-            
+            InitTrainingSet(AIState, &AIState->TrainingSetX, &AIState->TrainingSety, 0, INIT_TRAINING_BOUND_MAX);
+            InitTrainingSet(AIState, &AIState->TestSetX, &AIState->TestSety, INIT_TEST_BOUND_MIN, AIState->y.CountX);
             
             AIState->IsInitialized = true;
         }
@@ -255,7 +124,6 @@ extern "C" AI_UPDATE_AND_RENDER(AIUpdateAndRender)
                 ++CodePoint)
             {
                 
-#if 1
                 s32 Width;
                 s32 Height;
                 s32 XOffset;
@@ -278,7 +146,7 @@ extern "C" AI_UPDATE_AND_RENDER(AIUpdateAndRender)
                 Assert((Width == (x1 - x0)) && 
                        (Height == (y1 - y0)));
                 
-#else
+#if 0                
                 //stbtt_GetCodepointBitmapBoxSubpixel(&FontInfo, CodePoint, Scale, Scale, 0, 0, &x0, &y0, &x1, &y1);
                 s32 Width = x1 - x0;
                 s32 Height = y1 - y0;
@@ -344,13 +212,63 @@ extern "C" AI_UPDATE_AND_RENDER(AIUpdateAndRender)
             }
         }
     }
+    ClearScreen(FrameBuffer, 0.2f, 0.2f, 0.2f, 1.0f);
+    AIState->AtX = 0;
+    AIState->AtY = (r32)FrameBuffer->Height - AIState->Fonts[0].YAdvance;
+    char Out_Buffer[4096] = {0};
+    
+#if 1       
+    
+    if(GlobalAIState && 
+       (AIState->IterIndex < MAX_LEARNING_ITERS))
+    {
+        temp_memory TempMemory = BeginTempMemory(&AIState->TranArena);
+        matrix_2 Grads = GetGradient(AIState, &AIState->TrainingSetX, &AIState->TrainingSety, AIState->RegParam); 
+        AIState->Theta = (AIState->Theta - (AIState->h * Grads));
+        AIState->Cost = CostOfTheta(AIState, &AIState->TrainingSetX, &AIState->TrainingSety, AIState->RegParam);
+        EndTempMemory(&TempMemory);
+        ++AIState->IterIndex;
+        
+        
+    }
+    
+    char BufferCost[4096] = {0};
+    sprintf_s(BufferCost, ArrayCount(BufferCost), "Cost: %f", AIState->Cost);
+    RenderTextLine(AIState, FrameBuffer, BufferCost);
+    
+    if(AIState->IterIndex >= MAX_LEARNING_ITERS)
+    {
+        sprintf_s(Out_Buffer, ArrayCount(Out_Buffer), "Result Thetas:");
+        RenderTextLine(AIState, FrameBuffer, Out_Buffer);
+        
+        u32 Count = MatrixCount(&AIState->Theta);
+        for(u32 Index = 0;
+            Index < Count;
+            ++Index)
+        {
+            sprintf_s(Out_Buffer, ArrayCount(Out_Buffer), "%f ", AIState->Theta.Data[Index]);
+            RenderTextLine(AIState, FrameBuffer, Out_Buffer);
+        }
+        
+#if 0        
+        for(;;)
+        {
+            sprintf_s(Out_Buffer, ArrayCount(Out_Buffer), "Test :");
+            RenderTextLine(AIState, FrameBuffer, Out_Buffer);
+        }
+#endif
+        
+    }
     
     
-    r64 Cost = {};
+    
+#else
+    //NOTE(Alex): Multi-Test segment for Learning Curves
     if(AIState->TestIndex < MAX_LEARNING_CURVE_ENTRIES)
     {
         //TODO(Alex): Run this on a second thread?
         ai_LearningStep(AIState, &Cost);
+        
         if(AIState->IterIndex == MAX_LEARNING_ITERS)
         {
             u32 TestIndex = AIState->TestIndex++;
@@ -366,42 +284,46 @@ extern "C" AI_UPDATE_AND_RENDER(AIUpdateAndRender)
             
             AIState->IterIndex = 0;
         }
+        
     }
+#endif
     
-    ClearScreen(FrameBuffer, 0.2f, 0.2f, 0.2f, 1.0f);
-    
-    //TODO(Alex): Control writing positioning
-    AIState->AtX = 0;
-    AIState->AtY = (r32)FrameBuffer->Height - AIState->Fonts[0].YAdvance;
-    
-    temp_memory RenderTempMem = BeginTempMemory(&AIState->TranArena);
-    
-    char BThetasText[4096] = {0};
-    sprintf_s(BThetasText, ArrayCount(BThetasText), "Thetas: ");
-    RenderText(AIState, FrameBuffer, BThetasText);
-    
-    char BThetas[4096] = {0};
-    u32 Count = ElementCount(&AIState->Theta);
-    for(u32 Index = 0;
-        Index < Count;
-        ++Index)
-    {
-        sprintf_s(BThetas, ArrayCount(BThetas), "%f ", AIState->Theta.Data[Index]);
-        RenderText(AIState, FrameBuffer, BThetas);
-    }
-    
-    char BCost[4096] = {0};
-    sprintf_s(BCost, ArrayCount(BCost), "\nCost: %f\n", Cost);
-    RenderText(AIState, FrameBuffer, BCost);
-    
-    if(AIState->TestIndex >= MAX_LEARNING_CURVE_ENTRIES)
-    {
-        RenderText(AIState, FrameBuffer,  "Learning Curves");
-        DebugPlot2D(AIState, FrameBuffer, AIState->GraphEntries, ArrayCount(AIState->GraphEntries));
-    }
-    
-    EndTempMemory(&RenderTempMem);
 }
+
+
+#if 0    
+//TODO(Alex): Learning curves wacky test
+AIState->AtX = 0;
+AIState->AtY = (r32)FrameBuffer->Height - AIState->Fonts[0].YAdvance;
+
+temp_memory RenderTempMem = BeginTempMemory(&AIState->TranArena);
+
+char BThetasText[4096] = {0};
+sprintf_s(BThetasText, ArrayCount(BThetasText), "Thetas: ");
+RenderText(AIState, FrameBuffer, BThetasText);
+
+char BThetas[4096] = {0};
+u32 Count = MatrixCount(&AIState->Theta);
+for(u32 Index = 0;
+    Index < Count;
+    ++Index)
+{
+    sprintf_s(BThetas, ArrayCount(BThetas), "%f ", AIState->Theta.Data[Index]);
+    RenderText(AIState, FrameBuffer, BThetas);
+}
+
+char BCost[4096] = {0};
+sprintf_s(BCost, ArrayCount(BCost), "\nCost: %f\n", Cost);
+RenderText(AIState, FrameBuffer, BCost);
+
+if(AIState->TestIndex >= MAX_LEARNING_CURVE_ENTRIES)
+{
+    RenderText(AIState, FrameBuffer,  "Learning Curves");
+    DebugPlot2D(AIState, FrameBuffer, AIState->GraphEntries, ArrayCount(AIState->GraphEntries));
+}
+
+EndTempMemory(&RenderTempMem);
+#endif
 
 //NOTE(Alex): Multiple Learning rates test 
 #if 0
@@ -411,7 +333,7 @@ for(u32 TestIndex = 0;
 {
     Theta[TestIndex] = MatrixXY(&AIState->AIArena, X.CountY, 1);
     for(u32 Index = 0;
-        Index < ElementCount(&Theta[TestIndex]);
+        Index < MatrixCount(&Theta[TestIndex]);
         ++Index)
     {
         Theta[TestIndex].Data[Index] = 30.0;

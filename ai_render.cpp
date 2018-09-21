@@ -431,7 +431,7 @@ GetKerningForPair(ai_state * AIState,
 //TODO(Alex): Batch system for rendering glyphs! 
 //use codepoint list to modify a specific glyph to be rendered into the batch!   
 internal void 
-RenderText(ai_state * AIState, asset_bitmap * Dest, char * Text)
+RenderTextLine(ai_state * AIState, asset_bitmap * Buffer, char * Text)
 {
     if(IsValidFont(&AIState->Fonts[0]))
     {
@@ -457,7 +457,7 @@ RenderText(ai_state * AIState, asset_bitmap * Dest, char * Text)
             
             if(Glyph)
             {
-                DrawBitmapAt(Dest, Glyph,  P.x, P.y);
+                DrawBitmapAt(Buffer, Glyph,  P.x, P.y);
             }
             
             *AtX += HAdvance + KerningAdvance; 
@@ -503,6 +503,121 @@ InitAssetFont(ai_state * AIState)
     Result->MinGlyphIndex = AIState->GlyphCount;
     Result->MaxGlyphIndex = Result->MinGlyphIndex;
     return Result;
+}
+
+//NOTE(Alex): DEBUG PLOT 2D 
+
+//TODO(Alex): Move this calculations outside the loop, they dont need to be calculated twice!
+internal r64 FindMaxCost(ai_graph_entries * Entries, u32 EntryCount)
+{
+    r64 Result = MinR64;
+    for(u32 Index = 0;
+        Index < EntryCount;
+        ++Index)
+    {
+        ai_graph_entries * Entry = Entries + Index;
+        EXCHANGE_MAX_R64(Result, Entry->TrainingCost);
+        EXCHANGE_MAX_R64(Result, Entry->CVCost);
+    }
+    
+    return Result;
+}
+
+struct graph_point
+{
+    vector_2 P;
+    vector_4 Color;
+};
+
+struct graph_point_result
+{
+    u32 PointCount;
+    graph_point * Points;
+};
+
+internal graph_point_result * 
+MapGraphEntriesToBasis(memory_arena * Arena, ai_graph_entries * Entries, u32 EntryCount, vector_2 Origin, vector_2 XAxis, vector_2 YAxis)
+{
+    graph_point_result * Result = 0;
+    
+    uint32_t PointIndex = 0;
+    Result = PushStruct(Arena, graph_point_result);
+    Result->PointCount = (EntryCount << 1);
+    Result->Points = PushArray(Arena, Result->PointCount, graph_point);
+    
+    if(Result && Result->Points)
+    {
+        //NOTE(Alex): Here we are assuming that the last entry has the biggest trainingcount; 
+        ai_graph_entries * LastEntry = Entries + (EntryCount - 1);
+        r32 InverseMaxTrainingCount = 1.0f / (r32)LastEntry->TrainCount;
+        r32 MaxCost = (r32)FindMaxCost(Entries, EntryCount);
+        r32 InverseMaxCost = 1.0f / MaxCost;
+        
+        for(u32 Index = 0;
+            Index < EntryCount;
+            ++Index)
+        {
+            Assert(PointIndex < Result->PointCount);
+            
+            ai_graph_entries * Entry = Entries + Index;
+            graph_point * RTrain = Result->Points + PointIndex++;
+            graph_point * RCV = Result->Points + PointIndex++;
+            
+            r32 DispX = ((r32)Entry->TrainCount * InverseMaxTrainingCount * XAxis.x);
+            r32 DispYTrain = ((r32)Entry->TrainingCost * InverseMaxCost * YAxis.y);
+            r32 DispYCV = ((r32)Entry->CVCost * InverseMaxCost * YAxis.y);
+            
+#if 0            
+            Assert(DispX < XAxis.x);
+            Assert(DispYTrain < YAxis.y);
+            Assert(DispYCV < YAxis.y);
+#endif
+            
+            RTrain->P.x = Origin.x + DispX;
+            RTrain->P.y = Origin.y + DispYTrain;
+            RTrain->Color = Vector4(1.0f,1.0f,0.0f,1.0f);
+            
+            RCV->P.x = Origin.x + DispX;
+            RCV->P.y = Origin.y + DispYCV;
+            RCV->Color = Vector4(0.0f,1.0f,1.0f,1.0f);
+        }
+    }
+    
+    return Result;
+}
+
+internal void
+DebugPlot2D(ai_state * AIState, asset_bitmap * Buffer, ai_graph_entries * Entries, u32 EntryCount)
+{
+    vector_2 Origin = {300,100};  
+    vector_2 YAxis = Vector2(0, 400.0f);  
+    vector_2 XAxis = Vector2(400.0f, 0);  
+    
+    r32  BoxWidth, BoxHeight, Red, Green, Blue;
+    BoxWidth = BoxHeight = 8.0f;
+    Blue = Green = Red = 1.0f;
+    
+    graph_point_result * Graph = MapGraphEntriesToBasis(&AIState->TranArena, Entries, EntryCount, Origin, XAxis, YAxis);
+    if(Graph)
+    {
+        rectangle_2 OriginRect = RectCenterDim(Origin, Vector2(BoxWidth, BoxHeight));
+        DrawRectangleAt(Buffer, OriginRect, 0.0f, 1.0f, 0.0f);
+        
+        rectangle_2 XBasisRect = RectCenterDim(XAxis + Origin, Vector2(BoxWidth, BoxHeight));
+        DrawRectangleAt(Buffer, XBasisRect, 1.0f, 0.0f, 0.0f);
+        
+        rectangle_2 YRect = RectCenterDim(YAxis  + Origin, Vector2(BoxWidth, BoxHeight));
+        DrawRectangleAt(Buffer, YRect, 0.0f, 0.0f, 1.0f);
+        
+        for(u32 Index = 0;
+            Index < Graph->PointCount;
+            ++Index)
+        {
+            graph_point * Point = Graph->Points + Index;
+            rectangle_2 Rect = RectCenterDim(Point->P, Vector2(BoxWidth, BoxHeight));
+            DrawRectangleAt(Buffer, Rect, Point->Color.r, Point->Color.g, Point->Color.b, Point->Color.a);
+        }
+    }
 }
 
 

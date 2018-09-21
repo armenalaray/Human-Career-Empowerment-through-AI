@@ -24,7 +24,7 @@ Matrix movement:
 
 
 inline u32  
-ElementCount(matrix_2 * Matrix)
+MatrixCount(matrix_2 * Matrix)
 {
     u32 Result = Matrix->CountY * Matrix->CountX;
     return Result;
@@ -64,7 +64,7 @@ internal matrix_2
 Ones(u32 CountX, u32 CountY)
 {
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, CountX, CountY);
-    u32 Count = ElementCount(&Result);
+    u32 Count = MatrixCount(&Result);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -78,7 +78,7 @@ internal matrix_2
 Zeroes(u32 CountX, u32 CountY)
 {
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, CountX, CountY);
-    u32 Count = ElementCount(&Result);
+    u32 Count = MatrixCount(&Result);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -93,7 +93,7 @@ internal matrix_2
 Zeroes(matrix_2 * out_matrix)
 {
     Assert(out_matrix->Data);
-    u32 Count = ElementCount(out_matrix);
+    u32 Count = MatrixCount(out_matrix);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -108,7 +108,7 @@ internal matrix_2
 Log(matrix_2 A)
 {
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, A.CountX, A.CountY);
-    u32 Count = ElementCount(&Result);
+    u32 Count = MatrixCount(&Result);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -130,7 +130,7 @@ operator-(matrix_2 A, matrix_2 B)
            (B.CountY == B.CountY));
     
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, A.CountX, A.CountY);
-    u32 Count = ElementCount(&A);
+    u32 Count = MatrixCount(&A);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -149,7 +149,7 @@ operator+(matrix_2 A, matrix_2 B)
            (B.CountY == B.CountY));
     
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, A.CountX, A.CountY);
-    u32 Count = ElementCount(&A);
+    u32 Count = MatrixCount(&A);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -166,7 +166,7 @@ operator-(matrix_2 A)
 {
     Assert(A.CountX && A.CountY);
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, A.CountX, A.CountY);
-    u32 Count = ElementCount(&A);
+    u32 Count = MatrixCount(&A);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -183,7 +183,7 @@ operator*(matrix_2 A, r64 Scalar)
 {
     Assert(A.CountX && A.CountY);
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, A.CountX, A.CountY);
-    u32 Count = ElementCount(&A);
+    u32 Count = MatrixCount(&A);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -210,7 +210,7 @@ Hadamard(matrix_2 *  A, matrix_2 * B)
            (B->CountY == B->CountY));
     
     matrix_2 Result = MatrixXY(&GetAIState()->TranArena, A->CountX, A->CountY);
-    u32 Count = ElementCount(A);
+    u32 Count = MatrixCount(A);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -264,7 +264,7 @@ InnerProduct(matrix_2 * A, matrix_2 * B)
     Result.CountY = B->CountY;
     Result.Data = PushArray(&GetAIState()->TranArena, Result.CountX * Result.CountY, r64);
     
-    u32 Count = ElementCount(&Result);
+    u32 Count = MatrixCount(&Result);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -292,7 +292,7 @@ Sigmoid(matrix_2 * A)
     ai_state * AIState = GetAIState();
     matrix_2 Result = MatrixXY(&AIState->TranArena, A->CountX, A->CountY);
     
-    u32 Count = ElementCount(&Result);
+    u32 Count = MatrixCount(&Result);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -309,7 +309,7 @@ Sigmoid(matrix_2 * A)
 internal void
 CopyMatrix(matrix_2 * out_dest, matrix_2 * in_source, u32 ix = 0)
 {
-    u32 Count = ElementCount(out_dest);
+    u32 Count = MatrixCount(out_dest);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -350,7 +350,7 @@ Summation(matrix_2 * A)
     Assert(A->CountX && A->CountY);
     r64 Result = 0;
     
-    u32 Count = ElementCount(A);
+    u32 Count = MatrixCount(A);
     for(u32 Index = 0;
         Index < Count;
         ++Index)
@@ -380,7 +380,7 @@ AbsValue(r64 Value)
 inline b32 
 IsValidSet(ai_matrix_set * Set)
 {
-    b32 Result = (Set->Matrix  && (Set->MaxRow >= Set->MinRow)); 
+    b32 Result = (Set->Matrix  && (Set->MaxRowIndex >= Set->MinRowIndex)); 
     return Result;
 }
 
@@ -423,7 +423,7 @@ CostOfTheta_(ai_state * AIState, matrix_2 * X, matrix_2 * y, r64 RegParam)
     matrix_2 Sum = -ProductY1 - ProductY0;
     
     r64 SumTheta = 0;
-    u32 Count = ElementCount(&AIState->Theta);
+    u32 Count = MatrixCount(&AIState->Theta);
     for(u32 Index = 1;
         Index < Count;
         ++Index)
@@ -481,7 +481,7 @@ GetVecFromMatrix(matrix_2 A, u32 VecIndex, b32 ByColumns)
     matrix_2 Result = ByColumns ? MatrixY(&GetAIState()->TranArena, A.CountY) : MatrixX(&GetAIState()->TranArena, A.CountX);
     
     for(u32 Index = 0;
-        Index < ElementCount(&A);
+        Index < MatrixCount(&A);
         ++Index)
     {
         (ByColumns)

@@ -1,7 +1,19 @@
+/*
+
+TODO(Alex):
+
+- Test theta parameters that you have right now! With the training model
+- API cleaning, define the entry points to work with
+- NN implementation - Implement Logistic NN and test with the student information
+
+
+*/
+
+
 #ifndef AI_MAIN_H
 
-#define INCREASE_SET(Set) (++(Set)->MaxRow)
-#define GET_SET_COUNT(Set) ((Set)->MaxRow - (Set)->MinRow + 1); 
+#define INCREASE_SET(Set) (++(Set)->MaxRowIndex)
+#define GET_SET_COUNT(Set) ((Set)->MaxRowIndex - (Set)->MinRowIndex + 1); 
 
 
 struct memory_arena
@@ -14,19 +26,18 @@ struct memory_arena
 struct temp_memory
 {
     memory_arena  * Arena;
-    void * Base;
+    memory_index Threshold;
     u32 TempCount;
 };
-
 
 internal temp_memory 
 BeginTempMemory(memory_arena * Arena)
 {
     temp_memory Result = {};
     Result.Arena = Arena;
-    
-    Result.Base = (char*)Arena->Base + Arena->Used;
+    Result.Threshold = Arena->Used;
     ++Result.TempCount;
+    
     
     return Result;
 }
@@ -34,9 +45,9 @@ BeginTempMemory(memory_arena * Arena)
 internal void
 EndTempMemory(temp_memory * TempMemory)
 {
-    Assert(TempMemory->TempCount == 1);
-    TempMemory->Arena->Used = (memory_index)((char *)TempMemory->Base - (char *)TempMemory->Arena->Base);
+    TempMemory->Arena->Used = TempMemory->Threshold;
     --TempMemory->TempCount;
+    Assert(TempMemory->TempCount == 0);
 }
 
 internal void
@@ -74,7 +85,6 @@ struct ai_state;
 #define INIT_TRAINING_BOUND_MAX 69
 #define INIT_TEST_BOUND_MIN 90
 
-
 struct ai_graph_entries
 {
     r64 TrainingCost;
@@ -86,8 +96,8 @@ struct ai_graph_entries
 struct ai_matrix_set
 {
     matrix_2 * Matrix;
-    u32 MinRow;
-    u32 MaxRow;
+    u32 MinRowIndex;
+    u32 MaxRowIndex;
 };
 
 struct ai_state
@@ -102,7 +112,7 @@ struct ai_state
     r64 h;
     r64 RegParam;
     
-    r64 Cost_;
+    r64 Cost;
     matrix_2 X;
     matrix_2 y;
     matrix_2 Theta;
