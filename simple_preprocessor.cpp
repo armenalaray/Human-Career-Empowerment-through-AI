@@ -794,7 +794,7 @@ GetMatrixDim(tokenizer * Tokenizer, char * ID)
     if(TokenIsIdentifier(&Matrix, ID))
     {
         if(TokenIsOfType(Tokenizer
-			, TokenType_OpenParen))
+                         , TokenType_OpenParen))
         {
             for(;;)
             {
